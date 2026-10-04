@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MR Shop</title>
+<style>
+:root{--bg:#f6f7f4;--card:#fff;--tx:#1d2a20;--mut:#6b7a6f;--pri:#2e7d32;--bd:#dfe5dc;--red:#c62828}
+@media (prefers-color-scheme:dark){:root{--bg:#121712;--card:#1b231c;--tx:#e8efe9;--mut:#9aa89d;--pri:#66bb6a;--bd:#2c382d;--red:#ef5350}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,"Noto Sans Bengali",sans-serif;padding:env(safe-area-inset-top,0) 0 80px}
+h1{font-size:18px;margin:0;padding:14px 16px;background:var(--pri);color:#fff;display:flex;justify-content:space-between;align-items:center}
+h1 a{font-size:13px;text-decoration:underline}.m2{font-size:12px;font-weight:400}
+.w{padding:10px;max-width:640px;margin:auto}
+.c,.it{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px;margin-bottom:10px}
+input,select{width:100%;padding:10px;margin:3px 0;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font-size:16px}
+button{background:var(--pri);color:#fff;border:0;border-radius:8px;padding:11px;font-size:16px;width:100%;margin-top:6px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:6px 0}
+.chips button{width:auto;white-space:nowrap;padding:7px 12px;font-size:14px;background:var(--card);color:var(--tx);border:1px solid var(--bd);margin:0}
+.chips button.a{background:var(--pri);color:#fff}
+.gr{display:grid;grid-template-columns:1fr 1fr;gap:8px}.it{margin:0}
+.im{width:100%;height:90px;object-fit:cover;border-radius:8px;margin-bottom:6px}
+.m{color:var(--mut);font-size:13px}.pr{color:var(--pri);font-weight:700;margin:3px 0}.low{color:var(--red)}
+.r{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0}
+.q{display:flex;align-items:center;gap:6px}.q button{width:34px;margin:0;padding:7px}
+.n{font-size:20px;font-weight:700;color:var(--pri)}.tag{background:var(--bd);border-radius:6px;padding:2px 8px;font-size:12px}
+.od{border-top:1px solid var(--bd);padding:8px 0}.sm{width:auto;padding:6px 10px;font-size:13px;margin:4px 4px 0 0}.dl{background:var(--red)}
+.lg{text-align:center;padding:80px 20px}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom,0)}
+nav button{background:none;color:var(--mut);margin:0;border-radius:0;padding:14px 2px;font-size:14px}nav button.a{color:var(--pri);font-weight:700}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+firebase.initializeApp({apiKey:"AIzaSyBVn489X1JNp8WQ_tcUOons_sspCpGmKv4",authDomain:"mr-shop-88b61.firebaseapp.com",projectId:"mr-shop-88b61",storageBucket:"mr-shop-88b61.firebasestorage.app",messagingSenderId:"865184955095",appId:"1:865184955095:web:c21b73686847324ceb4e92"});
+var auth=firebase.auth(),db=firebase.firestore();
+var CATS=['চাল-ডাল-আটা','তেল-ঘি','মসলা','সবজি','ডিম-দুধ','চিনি-চা-নাস্তা','পানীয়','সাবান-পরিষ্কার','পোশাক','ইলেকট্রনিক্স','ওষুধ','অন্যান্য'];
+var U=null,ST=null,ready=false,PR=[],ORa=[],ORs=[],ORb=[],cart={},cat='সব',q='',tab='shop',IMG='',ci={n:'',p:'',a:''},G={},ownSub=false,started=false;
+function $(i){return document.getElementById(i)}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function dd(d){var o=d.data();o.id=d.id;return o}
+function er(e){console.log(e)}
+function P(id){return PR.find(function(p){return p.id==id})}
+function own(){return !!(ST&&U&&ST.ownerUid==U.uid)}
+function canAdd(){return own()||!!(ST&&ST.sellersCanAdd)}
+function step(u){return(u=='কেজি'||u=='লিটার')?0.5:1}
+function login(){auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(function(e){alert('লগইন হয়নি: '+e.message)})}
+function claim(){db.doc('settings/app').set({ownerUid:U.uid,ownerEmail:U.email,sellersCanAdd:false,commission:5}).catch(function(e){alert('মালিক হওয়া যায়নি: '+e.message)})}
+auth.onAuthStateChanged(function(u){U=u;if(u&&!started){started=true;start()}render(1)});
+function start(){
+ db.doc('settings/app').onSnapshot(function(s){ST=s.exists?s.data():null;ready=true;if(own()&&!ownSub){ownSub=true;db.collection('orders').onSnapshot(function(x){ORa=x.docs.map(dd);render()},er)}render()},er);
+ db.collection('products').onSnapshot(function(s){PR=s.docs.map(dd);render()},er);
+ db.collection('orders').where('sellerUid','==',U.uid).onSnapshot(function(s){ORs=s.docs.map(dd);render()},er);
+ db.collection('orders').where('buyerUid','==',U.uid).onSnapshot(function(s){ORb=s.docs.map(dd);render()},er)}
+function render(f){
+ var a=document.activeElement;if(!f&&a&&/INPUT|SELECT|TEXTAREA/.test(a.tagName))return;
+ var A=$('app');
+ if(!U){A.innerHTML='<div class="lg"><h2>🛒 MR Shop</h2><p class="m">মুদি, পোশাক, ইলেকট্রনিক্স ও ওষুধের অনলাইন দোকান</p><button onclick="login()">Google দিয়ে ঢুকুন</button></div>';return}
+ if(!ready){A.innerHTML='<p class="m" style="padding:20px">লোড হচ্ছে...</p>';return}
+ if(tab=='add'&&!canAdd()&&!own())tab='shop';
+ var h='<h1>🛒 MR Shop<span class="m2">'+esc(U.displayName||'')+' · <a onclick="auth.signOut().then(function(){location.reload()})">বের হন</a></span></h1><div class="w">';
+ if(!ST)h+='<div class="c">এখনো মালিক ঠিক হয়নি। আপনি কি এই দোকানের মালিক?<button onclick="claim()">হ্যাঁ, আমি মালিক</button></div>';
+ h+={shop:vShop,add:vAdd,ord:vOrd,own:vOwn}[tab]();
+ var T=[['shop','🏪 দোকান'],['ord','📋 অর্ডার']];if(canAdd())T.splice(1,0,['add','📦 পণ্য']);if(own())T.push(['own','👑 মালিক']);
+ A.innerHTML=h+'</div><nav>'+T.map(function(t){return'<button class="'+(t[0]==tab?'a':'')+'" onclick="tab=\''+t[0]+'\';render(1)">'+t[1]+'</button>'}).join('')+'</nav>'}
+function vShop(){
+ return'<input placeholder="🔍 পণ্য খুঁজুন" value="'+esc(q)+'" oninput="q=this.value.trim();grid()"><div class="chips">'+['সব'].concat(CATS).map(function(c){return'<button class="'+(c==cat?'a':'')+'" onclick="cat=\''+c+'\';render(1)">'+c+'</button>'}).join('')+'</div>'+cartHtml()+'<div class="gr" id="grid">'+gridHtml()+'</div>'}
+function gridHtml(){
+ return PR.filter(function(p){return(cat=='সব'||p.cat==cat)&&p.name.indexOf(q)>=0}).map(function(p){var k=cart[p.id];
+  return'<div class="it">'+(p.img?'<img class="im" src="'+p.img+'">':'')+'<b>'+esc(p.name)+'</b><div class="pr">'+p.price+' ৳/'+esc(p.unit)+'</div><div class="m">'+(p.stock>0?'স্টক: '+p.stock:'<span class="low">স্টক শেষ</span>')+'</div>'+(p.stock>0?(k?'<div class="q"><button onclick="add(\''+p.id+'\',-1)">−</button><b>'+k+'</b><button onclick="add(\''+p.id+'\',1)">+</button></div>':'<button onclick="add(\''+p.id+'\',1)">+ যোগ</button>'):'')+'</div>'}).join('')||'<div class="m">কোনো পণ্য নেই</div>'}
+function grid(){$('grid').innerHTML=gridHtml()}
+function add(id,d){var p=P(id),c=(cart[id]||0)+d*step(p.unit);if(c>p.stock){alert('স্টকে আছে '+p.stock);return}if(c<=0)delete cart[id];else cart[id]=c;render(1)}
+function cartHtml(){var ks=Object.keys(cart);if(!ks.length)return'';var t=0,h='<div class="c"><b>কার্ট</b>';
+ ks.forEach(function(i){var p=P(i);if(!p)return;var a=cart[i]*p.price;t+=a;h+='<div class="r"><span>'+esc(p.name)+' <span class="m">'+cart[i]+' '+esc(p.unit)+'</span></span><b>'+a+' ৳</b></div>'});
+ return h+'<div class="r"><b>মোট</b><span class="n">'+t+' ৳</span></div><input placeholder="আপনার নাম" value="'+esc(ci.n)+'" oninput="ci.n=this.value"><input placeholder="ফোন নম্বর" inputmode="tel" value="'+esc(ci.p)+'" oninput="ci.p=this.value"><input placeholder="ঠিকানা" value="'+esc(ci.a)+'" oninput="ci.a=this.value"><button onclick="order()">অর্ডার করুন (ক্যাশ অন ডেলিভারি)</button></div>'}
+function order(){
+ if(!ci.n||!ci.p||!ci.a){alert('নাম, ফোন ও ঠিকানা দিন');return}
+ var g={},bad=0;Object.keys(cart).forEach(function(i){var p=P(i);if(!p||cart[i]>p.stock){bad=1;return}(g[p.sellerUid]=g[p.sellerUid]||{name:p.sellerName,items:[]}).items.push({pid:i,name:p.name,unit:p.unit,qty:cart[i],price:p.price})});
+ if(bad){alert('কিছু পণ্যের স্টক কমে গেছে, কার্ট ঠিক করুন');return}
+ var b=db.batch();
+ Object.keys(g).forEach(function(s){var o=g[s],t=o.items.reduce(function(a,x){return a+x.qty*x.price},0);
+  b.set(db.collection('orders').doc(),{buyerUid:U.uid,buyerName:ci.n,phone:ci.p,address:ci.a,sellerUid:s,sellerName:o.name,items:o.items,total:t,status:'নতুন',paid:false,t:Date.now()});
+  o.items.forEach(function(x){b.update(db.doc('products/'+x.pid),{stock:firebase.firestore.FieldValue.increment(-x.qty)})})});
+ b.commit().then(function(){cart={};tab='ord';alert('অর্ডার হয়েছে!');render(1)}).catch(function(e){alert('অর্ডার হয়নি: '+e.message)})}
+function pic(inp){var f=inp.files[0];if(!f)return;var fr=new FileReader();fr.onload=function(){var im=new Image();im.onload=function(){var s=Math.min(1,300/Math.max(im.width,im.height)),cv=document.createElement('canvas');cv.width=im.width*s;cv.height=im.height*s;cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);IMG=cv.toDataURL('image/jpeg',0.6);$('pv').innerHTML='<img class="im" src="'+IMG+'">'};im.src=fr.result};fr.readAsDataURL(f)}
+function vAdd(){
+ var mine=PR.filter(function(p){return own()||p.sellerUid==U.uid});
+ return'<div class="c"><b>নতুন পণ্য</b><input id="pn" placeholder="পণ্যের নাম"><select id="pu"><option>কেজি</option><option>লিটার</option><option>পিস</option><option>প্যাকেট</option><option>ডজন</option></select><select id="pc">'+CATS.map(function(c){return'<option>'+c+'</option>'}).join('')+'</select><input id="pp" type="number" inputmode="decimal" placeholder="বিক্রির দাম"><input id="ps" type="number" inputmode="decimal" placeholder="স্টক"><input type="file" accept="image/*" onchange="pic(this)"><div id="pv"></div><button onclick="addP()">যোগ করুন</button></div><div class="c"><b>আমার পণ্য</b>'+
+ (mine.map(function(p){return'<div class="od"><b>'+esc(p.name)+'</b> <span class="m">'+p.price+' ৳ · স্টক '+p.stock+' '+esc(p.unit)+'</span><br><button class="sm" onclick="ed(\''+p.id+'\')">দাম/স্টক বদলান</button><button class="sm dl" onclick="del(\''+p.id+'\')">মুছুন</button></div>'}).join('')||'<div class="m">এখনো কিছু নেই</div>')+'</div>'}
+function addP(){var n=$('pn').value.trim(),pr=+$('pp').value;if(!n||!pr){alert('নাম ও দাম দিন');return}
+ db.collection('products').add({name:n,unit:$('pu').value,cat:$('pc').value,price:pr,stock:+$('ps').value||0,img:IMG,sellerUid:U.uid,sellerName:U.displayName||'',t:Date.now()}).then(function(){IMG='';render(1)}).catch(function(e){alert('যোগ হয়নি: '+e.message)})}
+function ed(id){var p=P(id),a=prompt('নতুন দাম',p.price);if(a===null)return;var s=prompt('স্টক',p.stock);if(s===null)return;db.doc('products/'+id).update({price:+a,stock:+s}).catch(function(e){alert(e.message)})}
+function del(id){if(confirm('পণ্যটি মুছবেন?'))db.doc('products/'+id).delete()}
+function vOrd(){
+ return'<div class="c"><b>'+(own()?'সব অর্ডার':'আমার দোকানের অর্ডার')+'</b>'+ordList(own()?ORa:ORs,1)+'</div><div class="c"><b>আমার করা অর্ডার</b>'+ordList(ORb,0)+'</div>'}
+function ordList(L,mgr){
+ return L.slice().sort(function(a,b){return b.t-a.t}).map(function(o){return'<div class="od"><div class="r"><b>'+esc(o.buyerName)+'</b><span class="tag">'+o.status+'</span></div><div class="m">'+esc(o.phone)+' · '+esc(o.address)+'</div><div class="m">'+o.items.map(function(x){return esc(x.name)+' '+x.qty+' '+esc(x.unit)}).join(', ')+'</div><b>'+o.total+' ৳</b> <span class="m">দোকান: '+esc(o.sellerName)+'</span>'+(mgr&&o.status!='সম্পন্ন'?'<button class="sm" onclick="nx(\''+o.id+'\',\''+o.status+'\')">'+(o.status=='নতুন'?'পাঠানো হয়েছে':'সম্পন্ন')+' করুন</button>':'')+'</div>'}).join('')||'<div class="m">কোনো অর্ডার নেই</div>'}
+function nx(id,s){db.doc('orders/'+id).update({status:s=='নতুন'?'পাঠানো':'সম্পন্ন'}).catch(function(e){alert(e.message)})}
+function vOwn(){
+ var pct=ST.commission||5,tot=0;G={};
+ ORa.forEach(function(o){if(o.sellerUid==ST.ownerUid||o.status!='সম্পন্ন')return;var s=G[o.sellerUid]=G[o.sellerUid]||{n:o.sellerName,sale:0,due:0,ids:[]};s.sale+=o.total;if(!o.paid){s.due+=o.total*pct/100;s.ids.push(o.id)}});
+ Object.keys(G).forEach(function(k){tot+=G[k].due});
+ return'<div class="c"><b>অন্য দোকানদাররা পণ্য যোগ করতে পারবে?</b><div class="r"><span>এখন: <b>'+(ST.sellersCanAdd?'চালু':'বন্ধ')+'</b></span></div><button onclick="setOpen('+!ST.sellersCanAdd+')">'+(ST.sellersCanAdd?'বন্ধ করুন':'চালু করুন')+'</button></div>'+
+ '<div class="c"><div class="r"><b>কমিশন হার</b><span>'+pct+'%</span></div><button class="sm" onclick="setPct()">হার বদলান</button></div>'+
+ '<div class="c"><div class="r"><b>আপনার মোট পাওনা</b><span class="n">'+Math.round(tot*100)/100+' ৳</span></div>'+
+ (Object.keys(G).map(function(k){var s=G[k];return'<div class="od"><b>'+esc(s.n)+'</b><div class="m">সম্পন্ন বিক্রি: '+s.sale+' ৳ · বাকি কমিশন: '+Math.round(s.due*100)/100+' ৳</div>'+(s.due>0?'<button class="sm" onclick="pay(\''+k+'\')">পরিশোধ হয়েছে</button>':'')+'</div>'}).join('')||'<div class="m">এখনো কোনো সম্পন্ন বিক্রি নেই</div>')+'</div>'}
+function setOpen(v){db.doc('settings/app').update({sellersCanAdd:v}).catch(function(e){alert(e.message)})}
+function setPct(){var v=prompt('কমিশন কত শতাংশ?',ST.commission||5);if(v!==null&&+v>=0)db.doc('settings/app').update({commission:+v})}
+function pay(k){if(!confirm('কমিশন পরিশোধ হয়েছে বলে চিহ্নিত করবেন?'))return;var b=db.batch();G[k].ids.forEach(function(id){b.update(db.doc('orders/'+id),{paid:true})});b.commit().catch(function(e){alert(e.message)})}
+</script>
+</body>
+</html>
